@@ -29,269 +29,219 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
+public class RidablePlayers implements Listener {
+	private Plugin plugin;
+	private ProtocolManager manager = ProtocolLibrary.getProtocolManager();
+	private Map<String, ArmorStand> ridedPlayers = new HashMap<String, ArmorStand>();
+	private Map<String, Player> rideCouple = new HashMap<String, Player>();
+	private Map<String, Player> invRideCouple = new HashMap<String, Player>();
 
+	public RidablePlayers(Plugin plugin) {
+		this.plugin = plugin;
+		registerPacketListeners(plugin);
+	}
 
-public class RidablePlayers
-  implements Listener
-{
-  private Plugin plugin;
-  private ProtocolManager manager = ProtocolLibrary.getProtocolManager();
-  private Map<String, ArmorStand> ridedPlayers = new HashMap<String, ArmorStand>();
-  private Map<String, Player> rideCouple = new HashMap<String, Player>();
-  private Map<String, Player> invRideCouple = new HashMap<String, Player>();
+	@EventHandler
+	public void onRightClick(PlayerInteractAtEntityEvent e) {
+		if (e.getRightClicked() instanceof Player) {
 
-  
-  public RidablePlayers(Plugin plugin) {
-    this.plugin = plugin;
-    registerPacketListeners(plugin);
-  }
+			Player mount = (Player) e.getRightClicked();
+			Player rider = e.getPlayer();
 
-  
-  @EventHandler
-  public void onRightClick(PlayerInteractAtEntityEvent e) {
-    if (e.getRightClicked() instanceof Player) {
+			if (mount.hasPermission("shamed.ridable")) {
 
-      
-      Player mount = (Player)e.getRightClicked();
-      Player rider = e.getPlayer();
-      
-      if (mount.hasPermission("shamed.ridable")) {
+				if (this.ridedPlayers.containsKey(rider.getUniqueId().toString())) {
 
+					if (mount == this.invRideCouple.get(rider.getUniqueId().toString())) {
 
-        
-        if (this.ridedPlayers.containsKey(rider.getUniqueId().toString()))
-        {
-          
-          if (mount == this.invRideCouple.get(rider.getUniqueId().toString())) {
+						((ArmorStand) this.ridedPlayers.get(rider.getUniqueId().toString())).eject();
 
+						ride(rider, mount);
 
+						return;
+					}
+				}
 
+				if (!isTop(mount) && !this.ridedPlayers.containsKey(mount.getUniqueId().toString())) {
+					Player final_mount = getTop(mount);
+					ride(rider, final_mount);
 
+					return;
+				}
 
+				if (this.rideCouple.containsKey(mount.getUniqueId().toString())) {
+					e.setCancelled(true);
 
-            
-            ((ArmorStand)this.ridedPlayers.get(rider.getUniqueId().toString())).eject();
-            
-            ride(rider, mount);
+					return;
+				}
+				ride(rider, mount);
+				return;
+			}
+		}
+	}
 
-            
-            return;
-          } 
-        }
-        
-        if (!isTop(mount) && 
-          !this.ridedPlayers.containsKey(mount.getUniqueId().toString())) {
-          Player final_mount = getTop(mount);
-          ride(rider, final_mount);
+	@EventHandler
+	public void onPlayerMove(PlayerMoveEvent e) {
+		if (this.ridedPlayers.containsKey(e.getPlayer().getUniqueId().toString())) {
+			if (e.getPlayer().getLocation().getBlock().getRelative(BlockFace.DOWN).getType() == Material.AIR) {
+				e.getPlayer().hidePlayer(this.plugin, this.invRideCouple.get(e.getPlayer().getUniqueId().toString()));
+			} else {
 
-          
-          return;
-        } 
+				e.getPlayer().showPlayer(this.plugin, this.invRideCouple.get(e.getPlayer().getUniqueId().toString()));
+			}
+			net.minecraft.server.v1_16_R3.Entity nmsEntity = ((CraftEntity) this.ridedPlayers
+					.get(e.getPlayer().getUniqueId().toString())).getHandle();
+			nmsEntity.setPositionRotation(e.getPlayer().getLocation().getX(),
+					e.getPlayer().getLocation().getY() + 2.65D, e.getPlayer().getLocation().getZ(),
+					e.getPlayer().getLocation().getYaw(), e.getPlayer().getLocation().getPitch());
 
-        
-        if (this.rideCouple.containsKey(mount.getUniqueId().toString())) {
-          e.setCancelled(true);
-          
-          return;
-        } 
-        ride(rider, mount);
-        return;
-      } 
-    } 
-  }
+			System.out.println("RIDABLE[HASHMAP]>> " + this.ridedPlayers.toString());
+			System.out.println("RIDABLE[AM]>> "
+					+ ((ArmorStand) this.ridedPlayers.get(e.getPlayer().getUniqueId().toString())).toString());
+		}
+	}
 
+	@EventHandler
+	public void onSuffocate(EntityDamageEvent e) {
+		if (e.getEntity() instanceof Player) {
+			Player rider = (Player) e.getEntity();
+			if (this.rideCouple.containsKey(rider.getUniqueId().toString())
+					&& e.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION) {
+				e.setCancelled(true);
+			}
+		}
+	}
 
+	@EventHandler
+	public void onHit(EntityDamageByEntityEvent e) {
+		if (e.getEntity() instanceof Player && e.getDamager() instanceof Player) {
 
+			Player damager = (Player) e.getDamager();
 
+			if (this.rideCouple.containsKey(damager.getUniqueId().toString())
+					|| this.invRideCouple.containsKey(damager.getUniqueId().toString())) {
+				e.setCancelled(true);
+			}
+		}
+	}
 
-  
-  @EventHandler
-  public void onPlayerMove(PlayerMoveEvent e) {
-    if (this.ridedPlayers.containsKey(e.getPlayer().getUniqueId().toString())) {
-      if (e.getPlayer().getLocation().getBlock().getRelative(BlockFace.DOWN).getType() == Material.AIR) {
-        e.getPlayer().hidePlayer(this.plugin, this.invRideCouple.get(e.getPlayer().getUniqueId().toString()));
-      } else {
-        
-        e.getPlayer().showPlayer(this.plugin, this.invRideCouple.get(e.getPlayer().getUniqueId().toString()));
-      } 
-      net.minecraft.server.v1_16_R3.Entity nmsEntity = ((CraftEntity)this.ridedPlayers.get(e.getPlayer().getUniqueId().toString())).getHandle();
-      nmsEntity.setPositionRotation(e.getPlayer().getLocation().getX(), e.getPlayer().getLocation().getY() + 2.65D, e.getPlayer().getLocation().getZ(), e.getPlayer().getLocation().getYaw(), e.getPlayer().getLocation().getPitch());
+	private void registerPacketListeners(Plugin plugin) {
+		this.manager.addPacketListener((PacketListener) new PacketAdapter(plugin, ListenerPriority.NORMAL,
+				new PacketType[] { PacketType.Play.Client.STEER_VEHICLE }) {
 
+			@SuppressWarnings("deprecation")
+			public void onPacketReceiving(PacketEvent e) {
+				Player p = e.getPlayer();
+				WrapperPlayClientSteerVehicle packet = new WrapperPlayClientSteerVehicle(e.getPacket());
 
+				if (RidablePlayers.this.rideCouple.containsKey(p.getUniqueId().toString())) {
+					Player mount = (Player) RidablePlayers.this.rideCouple.get(p.getUniqueId().toString());
+					if (!RidablePlayers.this.rideCouple.containsKey(mount.getUniqueId().toString())) {
+						if (mount.hasPermission(new Permission("shamed.ridable.controllable")))
+							if (packet.getForward() > 0.0F) {
+								mount.setVelocity(p.getLocation().getDirection().setY(0));
+							} else if (packet.getForward() < 0.0F) {
+								mount.setVelocity(p.getLocation().getDirection().multiply(-1).setY(0));
+							}
+						if (packet.isJump()) {
+							if (mount.hasPotionEffect(PotionEffectType.JUMP)) {
+								for (PotionEffect effect : mount.getActivePotionEffects()) {
+									if (effect.getType() == PotionEffectType.JUMP && mount.isOnGround()) {
+										mount.setVelocity(mount.getVelocity().setY((effect.getAmplifier() + 1) * 0.1D));
+									}
+								}
 
+							} else if (mount.isOnGround()) {
+								mount.setVelocity(mount.getVelocity().setY(0.42D));
+							}
+						}
+					}
+				}
+			}
+		});
+	}
 
+	private boolean isTop(Player player) {
+		if (this.rideCouple.containsKey(player.getUniqueId().toString())) {
+			return false;
+		}
 
+		return true;
+	}
 
+	private Player getTop(Player player) {
+		if (!isTop(player)) {
+			return getTop(this.invRideCouple.get(player.getUniqueId().toString()));
+		}
+		return player;
+	}
 
-      
-      System.out.println("RIDABLE[HASHMAP]>> " + this.ridedPlayers.toString());
-      System.out.println("RIDABLE[AM]>> " + ((ArmorStand)this.ridedPlayers.get(e.getPlayer().getUniqueId().toString())).toString());
-    } 
-  }
+	private static int getDistance(Entity e) {
+		Location loc = e.getLocation().clone();
+		double y = loc.getBlockY();
+		int distance = 0;
+		for (double i = y; i >= 0.0D; i--) {
+			loc.setY(i);
+			if (loc.getBlock().getType().isSolid())
+				break;
+			distance++;
+		}
+		return distance;
+	}
 
+	private void ride(final Player passenger, final Player mount) {
+		Location spawnLocation = mount.getLocation();
+		spawnLocation.setY(spawnLocation.getY() + 2.65D);
 
+		final ArmorStand am = (ArmorStand) mount.getWorld().spawn(spawnLocation, ArmorStand.class);
 
+		am.setVisible(false);
+		am.setSmall(true);
+		am.setMarker(true);
+		am.setGravity(false);
+		am.addPassenger(passenger);
 
-  
-  @EventHandler
-  public void onSuffocate(EntityDamageEvent e) {
-    if (e.getEntity() instanceof Player) {
-      Player rider = (Player)e.getEntity();
-      if (this.rideCouple.containsKey(rider.getUniqueId().toString()) && 
-        e.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION) {
-        e.setCancelled(true);
-      }
-    } 
-  }
+		this.ridedPlayers.put(mount.getUniqueId().toString(), am);
+		this.invRideCouple.put(mount.getUniqueId().toString(), passenger);
+		this.rideCouple.put(passenger.getUniqueId().toString(), mount);
 
+		System.out.println("RIDABLE[NEW]>> " + this.ridedPlayers.toString());
 
-  
-  @EventHandler
-  public void onHit(EntityDamageByEntityEvent e) {
-    if (e.getEntity() instanceof Player && e.getDamager() instanceof Player) {
-      
-      Player damager = (Player)e.getDamager();
-      
-      if (this.rideCouple.containsKey(damager.getUniqueId().toString()) || this.invRideCouple.containsKey(damager.getUniqueId().toString())) {
-        e.setCancelled(true);
-      }
-    } 
-  }
+		(new BukkitRunnable() {
 
+			public void run() {
+				am.setHealth(mount.getHealth());
 
+				if (mount.getInventory().getItemInMainHand().getType().isBlock()
+						|| mount.getInventory().getItemInOffHand().getType().isBlock()) {
+					mount.hidePlayer(RidablePlayers.this.plugin, passenger);
+				} else {
 
-  
-  private void registerPacketListeners(Plugin plugin) {
-    this.manager.addPacketListener(
-        (PacketListener)new PacketAdapter(plugin, ListenerPriority.NORMAL, new PacketType[] { PacketType.Play.Client.STEER_VEHICLE })
-        {
-          
-          @SuppressWarnings("deprecation")
-public void onPacketReceiving(PacketEvent e)
-          {
-            Player p = e.getPlayer();
-            WrapperPlayClientSteerVehicle packet = new WrapperPlayClientSteerVehicle(e.getPacket());
-            
-            if (RidablePlayers.this.rideCouple.containsKey(p.getUniqueId().toString())) {
-              Player mount = (Player)RidablePlayers.this.rideCouple.get(p.getUniqueId().toString());
-              if (!RidablePlayers.this.rideCouple.containsKey(mount.getUniqueId().toString())) {
-                if (mount.hasPermission(new Permission("shamed.ridable.controllable")))
-                  if (packet.getForward() > 0.0F) {
-                    mount.setVelocity(p.getLocation().getDirection().setY(0));
-                  }
-                  else if (packet.getForward() < 0.0F) {
-                    mount.setVelocity(p.getLocation().getDirection().multiply(-1).setY(0));
-                  }  
-                if (packet.isJump()) {
-                  if (mount.hasPotionEffect(PotionEffectType.JUMP)) {
-                    for (PotionEffect effect : mount.getActivePotionEffects()) {
-                      if (effect.getType() == PotionEffectType.JUMP && 
-                        mount.isOnGround()) {
-                        mount.setVelocity(mount.getVelocity().setY((effect.getAmplifier() + 1) * 0.1D));
-                      }
-                    }
-                  
-                  }
-                  else if (mount.isOnGround()) {
-                    mount.setVelocity(mount.getVelocity().setY(0.42D));
-                  } 
-                }
-              } 
-            } 
-          }
-        });
-  }
+					mount.showPlayer(RidablePlayers.this.plugin, passenger);
+				}
 
-  
-  private boolean isTop(Player player) {
-    if (this.rideCouple.containsKey(player.getUniqueId().toString())) {
-      return false;
-    }
-    
-    return true;
-  }
+				if (am.getPassengers().get(0) == null || mount.isDead()
+						|| ((Entity) am.getPassengers().get(0)).isDead()) {
 
-  
-  private Player getTop(Player player) {
-    if (!isTop(player)) {
-      return getTop(this.invRideCouple.get(player.getUniqueId().toString()));
-    }
-    return player;
-  }
+					RidablePlayers.this.ridedPlayers.remove(mount.getUniqueId().toString());
+					RidablePlayers.this.invRideCouple.remove(mount.getUniqueId().toString());
+					RidablePlayers.this.rideCouple.remove(passenger.getUniqueId().toString());
 
+					passenger.showPlayer(RidablePlayers.this.plugin, mount);
 
-  
-  private static int getDistance(Entity e) {
-    Location loc = e.getLocation().clone();
-    double y = loc.getBlockY();
-    int distance = 0;
-    for (double i = y; i >= 0.0D; i--) {
-      loc.setY(i);
-      if (loc.getBlock().getType().isSolid())
-        break;  distance++;
-    } 
-    return distance;
-  }
-  
-  private void ride(final Player passenger, final Player mount) {
-    Location spawnLocation = mount.getLocation();
-    spawnLocation.setY(spawnLocation.getY() + 2.65D);
-    
-    final ArmorStand am = (ArmorStand)mount.getWorld().spawn(spawnLocation, ArmorStand.class);
+					am.remove();
 
-    
-    am.setVisible(false);
-    am.setSmall(true);
-    am.setMarker(true);
-    am.setGravity(false);
-    am.addPassenger(passenger);
-    
-    this.ridedPlayers.put(mount.getUniqueId().toString(), am);
-    this.invRideCouple.put(mount.getUniqueId().toString(), passenger);
-    this.rideCouple.put(passenger.getUniqueId().toString(), mount);
+					passenger.addPotionEffect(new PotionEffect(PotionEffectType.JUMP,
+							(int) (10.0D * Math.abs(RidablePlayers.getDistance((Entity) passenger)) * 0.25D + 2.0D),
+							2));
 
+					System.out.println("RIDABLE[REMOVED]>> " + RidablePlayers.this.ridedPlayers.toString());
 
+					cancel();
 
-    
-    System.out.println("RIDABLE[NEW]>> " + this.ridedPlayers.toString());
-
-    
-    (new BukkitRunnable()
-      {
-        
-        public void run()
-        {
-          am.setHealth(mount.getHealth());
-          
-          if (mount.getInventory().getItemInMainHand().getType().isBlock() || mount.getInventory().getItemInOffHand().getType().isBlock()) {
-            mount.hidePlayer(RidablePlayers.this.plugin, passenger);
-          } else {
-            
-            mount.showPlayer(RidablePlayers.this.plugin, passenger);
-          } 
-          
-          if (am.getPassengers().get(0) == null || mount.isDead() || ((Entity)am.getPassengers().get(0)).isDead()) {
-            
-            RidablePlayers.this.ridedPlayers.remove(mount.getUniqueId().toString());
-            RidablePlayers.this.invRideCouple.remove(mount.getUniqueId().toString());
-            RidablePlayers.this.rideCouple.remove(passenger.getUniqueId().toString());
-
-            
-            passenger.showPlayer(RidablePlayers.this.plugin, mount);
-            
-            am.remove();
-            
-            passenger.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, (int)(10.0D * Math.abs(RidablePlayers.getDistance((Entity)passenger)) * 0.25D + 2.0D), 2));
-
-            
-            System.out.println("RIDABLE[REMOVED]>> " + RidablePlayers.this.ridedPlayers.toString());
-            
-            cancel();
-
-            
-            return;
-          } 
-        }
-      }).runTaskTimer(this.plugin, 0L, 1L);
-  }
+					return;
+				}
+			}
+		}).runTaskTimer(this.plugin, 0L, 1L);
+	}
 }

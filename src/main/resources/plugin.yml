@@ -1,6 +1,6 @@
 name: ShamedPlug
 author: Shamed
-version: 0.1.6.40
+version: ${project.version}
 main: me.Shamed.Test.Main
 
 depend: [ProtocolLib, ViaVersion, floodgate-bukkit, HolographicDisplays]
