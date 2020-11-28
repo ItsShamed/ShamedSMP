@@ -109,7 +109,7 @@
   			<version>3.8.1</version>
   			<configuration>
   				<fork>true</fork>
-  				<executable>C:/Program Files/AdoptOpenJDK/jdk-8.0.272.10-hotspot/bin/javac.exe</executable>
+  				<executable>C:\Program Files\AdoptOpenJDK\jdk-8.0.272.10-hotspot\bin\javac.exe</executable>
   			</configuration>
   		</plugin>
   		<plugin>
