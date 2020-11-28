@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>me.Shamed</groupId>
   <artifactId>ShamedSMP</artifactId>
-  <version>0.0.1</version>
+  <version>0.0.2-SNAPSHOT</version>
   <description>A Minecraft Spigot plugin for semi-vanilla SMPs</description>
   
   <developers>
